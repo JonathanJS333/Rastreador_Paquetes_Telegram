@@ -9,10 +9,15 @@ import { DemoAdapter } from './demo.carrier.js';
 
 import type { CarrierAdapter } from './carrier.interface.js';
 import { FakeAdapter } from './fake.carrier.js';
+import { SecuenciaAdapter } from './secuencia.carrier.js';
 
 // El catalogo de paqueterias disponibles.
 // Aqui se iran anadiendo Estafeta, MercadoLibre, DHL...
-const adapters: CarrierAdapter[] = [new FakeAdapter(), new DemoAdapter()];
+const adapters: CarrierAdapter[] = [
+  new FakeAdapter(),
+  new DemoAdapter(),
+  new SecuenciaAdapter(),
+];
 
 
 export function getAdapter(carrierName: string): CarrierAdapter {

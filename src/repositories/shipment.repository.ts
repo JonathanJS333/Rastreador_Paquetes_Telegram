@@ -16,6 +16,9 @@ import { abrirBaseDeDatos } from './db.js';
 export interface Shipment {
   id: number;
   telegramId: number;
+  // A que conversacion hay que mandarle los avisos. No siempre coincide con
+  // telegramId: si alguien usa el bot dentro de un grupo, son numeros distintos.
+  chatId: number;
   trackingNumber: string;
   carrier: string;
   alias: string | null;
@@ -28,6 +31,7 @@ export interface Shipment {
 interface FilaShipment {
   id: number;
   telegram_id: number;
+  chat_id: number;
   tracking_number: string;
   carrier: string;
   alias: string | null;
@@ -40,6 +44,7 @@ function aShipment(fila: FilaShipment): Shipment {
   return {
     id: fila.id,
     telegramId: fila.telegram_id,
+    chatId: fila.chat_id,
     trackingNumber: fila.tracking_number,
     carrier: fila.carrier,
     alias: fila.alias,
@@ -51,6 +56,16 @@ function aShipment(fila: FilaShipment): Shipment {
     createdAt: fila.created_at,
   };
 }
+
+// Todas las consultas de paquetes necesitan el chat_id del usuario, porque ahi
+// es donde hay que mandarle los avisos, y ese dato vive en la tabla "users".
+// Por eso todas hacen el mismo JOIN. Tenerlo en un solo sitio evita que alguna
+// consulta nueva se olvide de traerlo.
+const SELECT_PAQUETE = `
+  SELECT s.*, u.chat_id AS chat_id
+  FROM shipments s
+  JOIN users u ON u.telegram_id = s.telegram_id
+`;
 
 export class ShipmentRepository {
   private readonly db: Database;
@@ -111,11 +126,25 @@ export class ShipmentRepository {
   listarPorUsuario(telegramId: number): Shipment[] {
     const filas = this.db
       .prepare(
-        `SELECT * FROM shipments
-         WHERE telegram_id = ? AND active = 1
-         ORDER BY id DESC`,
+        `${SELECT_PAQUETE}
+         WHERE s.telegram_id = ? AND s.active = 1
+         ORDER BY s.id DESC`,
       )
       .all(telegramId) as FilaShipment[];
+
+    return filas.map(aShipment);
+  }
+
+  // TODOS los paquetes activos, de todos los usuarios. Lo usa el sincronizador,
+  // que revisa el estado de cada paquete sin que nadie se lo pida.
+  listarTodos(): Shipment[] {
+    const filas = this.db
+      .prepare(
+        `${SELECT_PAQUETE}
+         WHERE s.active = 1
+         ORDER BY s.id ASC`,
+      )
+      .all() as FilaShipment[];
 
     return filas.map(aShipment);
   }
@@ -131,7 +160,10 @@ export class ShipmentRepository {
 
   private buscarPorId(id: number): Shipment | undefined {
     const fila = this.db
-      .prepare('SELECT * FROM shipments WHERE id = ?')
+      .prepare(
+        `${SELECT_PAQUETE}
+         WHERE s.id = ?`,
+      )
       .get(id) as FilaShipment | undefined;
 
     return fila ? aShipment(fila) : undefined;

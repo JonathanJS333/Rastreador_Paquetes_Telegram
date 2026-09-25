@@ -232,14 +232,15 @@ const FORBIDDEN = {
 
 | Pieza | Elección | Por qué |
 |---|---|---|
-| Runtime | Node.js 20+ | Ya instalado, soporte de TS |
+| Runtime | Node.js 22+ | Ya instalado (probado en 22.22.2), soporte de TS |
 | Lenguaje | TypeScript | Tipado, seguridad al refactorizar en equipo |
 | Bot | `grammy` | Ya en `package.json`, moderno, inline keyboards |
 | HTTP | `axios` | Ya en `package.json` |
 | Validación | `zod` | Validar `.env`, CP y datos externos |
 | Config | `dotenv` | Ya en `package.json` |
 | Dev runner | `tsx` | Ejecutar TS sin compilar |
-| Scheduler | `node-cron` | Simple, suficiente para el MVP |
+| Pruebas | `node:test` + `tsx` | Node 22 ya trae corredor de pruebas: cero dependencias nuevas. Se lanza con `npm test` |
+| Scheduler | Temporizadores de Node (`setTimeout`) | Vienen incluidos. `node-cron` sería una dependencia más para una línea (ver §11) |
 | BD (MVP) | `better-sqlite3` | Un archivo, cero servidores |
 | BD (v2) | PostgreSQL / Supabase | Cuando haya más de un servidor |
 | Zona horaria | `America/Mexico_City` | Oaxaca es hora del centro (UTC−6) |
@@ -892,6 +893,19 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 | Fecha | Estado | Siguiente paso |
 |---|---|---|
 | 2026-09-25 | Fase 6 (comandos): `/add` (guarda y consulta el estado por primera vez) y `/list` (con estado real). El repositorio tipa `status` como `NormalizedStatus` y añade `actualizarEstado()`. **Verificado:** guardado con estado real, duplicado con mensaje legible, paquetería inválida rechazada, aislamiento entre usuarios. | Probar `/add` y `/list` en Telegram y hacer commit |
+| 2026-09-25 | **Paso 10 / Fase 7 — sincronizador automático.** `SyncService.syncAll()` recorre todos los paquetes y avisa **solo cuando el estado cambió**. La capa de aplicación emite datos (`CambioDeEstado`), no frases: el bot las convierte en mensaje. El reloj es un `setTimeout` autorreagendado. Adaptador de desarrollo `secuencia` para poder verlo funcionar. **Verificado con 4 pruebas** (`npm test`) y con el flujo completo de punta a punta. | Probar en Telegram (`/add secuencia SECU000123` con `POLL_INTERVAL_MINUTES=1`) y hacer commit |
+
+**Método de trabajo adoptado** (ver §11): TDD (prueba que falla primero), revisión de 5 ejes y criterio "Ponytail" (la solución más simple que funcione).
+
+**Pendiente de este paso:**
+
+- El sincronizador **no tiene prueba propia** (su lógica sí: `SyncService` está cubierto). Probar el reloj exigiría inyectar temporizadores; no compensa todavía.
+- `npm run build` compila los `.test.ts` dentro de `dist/`. Inofensivo (nada los importa), pero se puede limpiar con un `tsconfig.build.json`.
+- El adaptador `secuencia` es una herramienta de desarrollo: hay que decidir si se queda en el catálogo de producción o se saca antes de desplegar.
+- `syncAll()` consulta los paquetes **de uno en uno**. Con pocos paquetes sobra; si algún día son cientos, toca paralelizar con un límite.
+- Sigue sin existir `scripts/check-architecture.mjs` (sección 2.8): las reglas de dependencia están escritas pero no se comprueban solas.
+- Falta `src/config/oaxaca.ts` (validación de CP 68000–71999) y los comandos `/remove`, `/cp`, `/notify on|off`.
+- Los adaptadores reales (Estafeta, MercadoLibre, DHL, agregador) siguen pendientes.
 
 ---
 
@@ -908,6 +922,15 @@ Cada decisión importante, con su motivo. Así, dentro de dos meses nadie tiene 
 | 2026-09-25 | **SQLite** como base de datos | Un solo archivo, cero infraestructura. Le sobra capacidad para este proyecto |
 | 2026-09-25 | **Despliegue en VPS propio** | Disco persistente: SQLite funciona sin problema. Los free tiers (Render/Railway) borran el disco en cada despliegue y obligarían a migrar a PostgreSQL |
 | 2026-09-25 | **Los estados viven como texto** en la base de datos | SQLite no tiene tipos enumerados; la conversión se hace en un único punto (`aShipment` en el repositorio) |
+| 2026-09-25 | **`node:test` + `tsx`** como corredor de pruebas | Node 22 ya trae corredor de pruebas incluido: cero dependencias nuevas. Comando: `npm test` |
+| 2026-09-25 | **Pruebas contra base de datos en memoria** (`:memory:`) | Cada prueba arranca limpia y no deja archivos. En Windows no se puede borrar un SQLite que sigue abierto (`EBUSY`), así que un archivo temporal no sirve |
+| 2026-09-25 | **`setTimeout` autorreagendado, no `setInterval`**, para el sincronizador | Con `setInterval`, una revisión lenta se solapa con la siguiente y el usuario recibe el mismo aviso dos veces |
+| 2026-09-25 | **Temporizadores de Node, no `node-cron`** | `setTimeout` viene incluido; `node-cron` sería una dependencia más para una línea |
+| 2026-09-25 | **El servicio emite DATOS (`CambioDeEstado`), no texto** | La capa de aplicación no debe saber español ni Telegram. Así el mismo aviso podría salir por correo o WhatsApp sin tocar el servicio |
+| 2026-09-25 | **El estado se guarda ANTES de enviar el aviso** | El sincronizador siempre avanza y nunca repite un mensaje ya enviado. A cambio, si Telegram falla, ese único aviso se pierde (el usuario puede ver el estado con `/list`) |
+| 2026-09-25 | **`chat_id` se lee de la tabla `users`, no se asume igual a `telegram_id`** | En un chat privado coinciden, en un grupo no. El dato ya estaba guardado: usarlo es más correcto que suponer |
+| 2026-09-25 | **Adaptador `secuencia`** (avanza un estado por consulta) | Sin él no había forma de *ver* el sincronizador funcionando: los adaptadores existentes devuelven siempre el mismo estado |
+| 2026-09-25 | **Método de trabajo: TDD + revisión de 5 ejes + Ponytail** | Prueba que falla primero; revisión con severidades; la solución más simple que funcione. Reduce bugs silenciosos, que es justo el riesgo de un bot que corre solo |
 
 > **Nota sobre la base de datos:** si algún día se migra a PostgreSQL, el trabajo está acotado a
 > `db.ts` y `shipment.repository.ts` (métodos `async` y marcadores `$1, $2` en vez de `?`). El bot,

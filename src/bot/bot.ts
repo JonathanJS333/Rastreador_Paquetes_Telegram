@@ -7,6 +7,7 @@
 import { Bot } from 'grammy';
 import { env } from '../config/env.js';
 import type { NormalizedStatus } from '../carriers/carrier.interface.js';
+import type { Avisar, CambioDeEstado } from '../services/sync.service.js';
 import type { TrackingService } from '../services/tracking.service.js';
 
 // Como se le muestra cada estado al usuario. Esto es presentacion, por eso vive
@@ -190,4 +191,29 @@ export function crearBot(tracking: TrackingService): Bot {
   });
 
   return bot;
+}
+
+// Convierte un cambio de estado en el mensaje que recibe el usuario.
+// Vive aqui porque es presentacion: el servicio manda DATOS, no frases.
+function formatearCambio(cambio: CambioDeEstado): string {
+  const titulo = cambio.alias
+    ? `${cambio.alias} (${cambio.trackingNumber})`
+    : cambio.trackingNumber;
+
+  return (
+    'Tu paquete cambio de estado.\n\n' +
+    `${titulo}\n` +
+    `Paqueteria: ${cambio.carrier}\n` +
+    `Antes: ${ETIQUETAS[cambio.anterior]}\n` +
+    `Ahora: ${ETIQUETAS[cambio.nuevo]}`
+  );
+}
+
+// El sincronizador necesita mandar mensajes, pero la capa de aplicacion no sabe
+// de Telegram (lo exige la arquitectura). Aqui le entregamos la funcion ya
+// "cableada" al bot, y asi el servicio solo ve una funcion cualquiera.
+export function crearAvisador(bot: Bot): Avisar {
+  return async (cambio) => {
+    await bot.api.sendMessage(cambio.chatId, formatearCambio(cambio));
+  };
 }
