@@ -169,6 +169,8 @@ Consecuencias prácticas:
 
 En una frase: **nadie importa hacia arriba.**
 
+> **Aclaración importante:** la columna «carriers» se refiere a los **adaptadores concretos** (`*.carrier.ts`). El archivo `carrier.interface.ts` es **dominio** (sección 2.3), así que **cualquier capa puede importarlo** sin romper la regla.
+
 ### 2.6 Módulos y dueño
 
 | Módulo | Contenido | Rol |
@@ -889,4 +891,4 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 
 | Fecha | Estado | Siguiente paso |
 |---|---|---|
-| 2026-09-25 | Config lista y `npm install` ejecutado (44 paquetes, 0 vulnerabilidades). **Verificado:** `npm run typecheck` pasa y `tsx` ejecuta `src/index.ts`. El aviso de `esbuild` (script postinstall bloqueado) es inofensivo: el binario existe en `node_modules/@esbuild/win32-x64/esbuild.exe`. | Hacer el primer commit del estado que ya funciona |
+| 2026-09-25 | Fase 5 (parcial): `TrackingService.consultar()`, `bot.ts` refactorizado a `crearBot(servicio)` y comando `/estado <paqueteria> <guia>`. **Verificado:** la cadena servicio → fábrica → adaptador funciona con `fake` y con el `DemoAdapter` del equipo; paquetería desconocida da error claro. | Probar `/estado` en Telegram y hacer commit |
