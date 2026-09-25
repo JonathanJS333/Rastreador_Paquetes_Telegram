@@ -894,6 +894,7 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 |---|---|---|
 | 2026-09-25 | Fase 6 (comandos): `/add` (guarda y consulta el estado por primera vez) y `/list` (con estado real). El repositorio tipa `status` como `NormalizedStatus` y añade `actualizarEstado()`. **Verificado:** guardado con estado real, duplicado con mensaje legible, paquetería inválida rechazada, aislamiento entre usuarios. | Probar `/add` y `/list` en Telegram y hacer commit |
 | 2026-09-25 | **Paso 10 / Fase 7 — sincronizador automático.** `SyncService.syncAll()` recorre todos los paquetes y avisa **solo cuando el estado cambió**. La capa de aplicación emite datos (`CambioDeEstado`), no frases: el bot las convierte en mensaje. El reloj es un `setTimeout` autorreagendado. Adaptador de desarrollo `secuencia` para poder verlo funcionar. **Verificado con 4 pruebas** (`npm test`) y con el flujo completo de punta a punta. | Probar en Telegram (`/add secuencia SECU000123` con `POLL_INTERVAL_MINUTES=1`) y hacer commit |
+| 2026-09-25 | **Paso 11 — validación de CP de Oaxaca.** `src/config/oaxaca.ts` con la función pura `validarCp()`. Distingue los **dos** motivos de rechazo (no tiene 5 dígitos / no es de Oaxaca) porque al usuario hay que decirle *cuál* de los dos es. **Verificado con 7 pruebas nuevas (11 en total, todas en verde)**, `typecheck` limpio y **chequeo de mutación** (bajar el límite a 71998 pone roja justo la prueba del límite superior). | Conectar la validación al bot: comando `/cp <codigo>` y validar el CP en `/add` |
 
 **Método de trabajo adoptado** (ver §11): TDD (prueba que falla primero), revisión de 5 ejes y criterio "Ponytail" (la solución más simple que funcione).
 
@@ -904,7 +905,7 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 - El adaptador `secuencia` es una herramienta de desarrollo: hay que decidir si se queda en el catálogo de producción o se saca antes de desplegar.
 - `syncAll()` consulta los paquetes **de uno en uno**. Con pocos paquetes sobra; si algún día son cientos, toca paralelizar con un límite.
 - Sigue sin existir `scripts/check-architecture.mjs` (sección 2.8): las reglas de dependencia están escritas pero no se comprueban solas.
-- Falta `src/config/oaxaca.ts` (validación de CP 68000–71999) y los comandos `/remove`, `/cp`, `/notify on|off`.
+- `src/config/oaxaca.ts` **ya existe** con `validarCp()`, pero **todavía no lo usa nadie**: falta el comando `/cp <codigo>` y validar el CP en `/add`. Siguen pendientes `/remove` y `/notify on|off`.
 - Los adaptadores reales (Estafeta, MercadoLibre, DHL, agregador) siguen pendientes.
 
 ---
@@ -931,6 +932,9 @@ Cada decisión importante, con su motivo. Así, dentro de dos meses nadie tiene 
 | 2026-09-25 | **`chat_id` se lee de la tabla `users`, no se asume igual a `telegram_id`** | En un chat privado coinciden, en un grupo no. El dato ya estaba guardado: usarlo es más correcto que suponer |
 | 2026-09-25 | **Adaptador `secuencia`** (avanza un estado por consulta) | Sin él no había forma de *ver* el sincronizador funcionando: los adaptadores existentes devuelven siempre el mismo estado |
 | 2026-09-25 | **Método de trabajo: TDD + revisión de 5 ejes + Ponytail** | Prueba que falla primero; revisión con severidades; la solución más simple que funcione. Reduce bugs silenciosos, que es justo el riesgo de un bot que corre solo |
+| 2026-09-25 | **Una sola función `validarCp()`**, en vez de `isOaxacaCp()` + `validateCp()` (como esbozaba §6.2) | Dos funciones donde una hace el trabajo es código de más que mantener, y la que sobra no aporta nada que la otra no haga ya |
+| 2026-09-25 | **Validar un CP devuelve una unión discriminada** `{ ok: true } \| { ok: false; motivo: string }`, no `{ ok, message? }` | Con el mensaje opcional, nada impide leerlo sin comprobar `ok` y quedarse con `undefined`. Con la unión, el compilador obliga a tratar el caso de error. Un CP inválido tiene SIEMPRE motivo |
+| 2026-09-25 | **`validarCp()` hace `trim()` ella misma** | En Telegram es habitual teclear " 68000 " sin querer. No tiene sentido castigar al usuario por un espacio de más, y resolverlo en un sitio evita que cada llamador tenga que acordarse |
 
 > **Nota sobre la base de datos:** si algún día se migra a PostgreSQL, el trabajo está acotado a
 > `db.ts` y `shipment.repository.ts` (métodos `async` y marcadores `$1, $2` en vez de `?`). El bot,
