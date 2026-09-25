@@ -891,4 +891,24 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 
 | Fecha | Estado | Siguiente paso |
 |---|---|---|
-| 2026-09-25 | Fase 5 (parcial): `TrackingService.consultar()`, `bot.ts` refactorizado a `crearBot(servicio)` y comando `/estado <paqueteria> <guia>`. **Verificado:** la cadena servicio → fábrica → adaptador funciona con `fake` y con el `DemoAdapter` del equipo; paquetería desconocida da error claro. | Probar `/estado` en Telegram y hacer commit |
+| 2026-09-25 | Fase 6 (comandos): `/add` (guarda y consulta el estado por primera vez) y `/list` (con estado real). El repositorio tipa `status` como `NormalizedStatus` y añade `actualizarEstado()`. **Verificado:** guardado con estado real, duplicado con mensaje legible, paquetería inválida rechazada, aislamiento entre usuarios. | Probar `/add` y `/list` en Telegram y hacer commit |
+
+---
+
+## 11. Registro de decisiones
+
+Cada decisión importante, con su motivo. Así, dentro de dos meses nadie tiene que preguntar "¿por qué está esto así?".
+
+| Fecha | Decisión | Motivo |
+|---|---|---|
+| 2026-09-25 | **Arquitectura Modular por Capas Pragmática** (sección 2) | Da orden sin exigir contenedores de inyección ni DDD completo |
+| 2026-09-25 | **Agregador de rastreo** (AfterShip/TrackingMore) en vez de APIs oficiales | Ninguna paquetería mexicana ofrece API de rastreo abierta y gratuita, salvo Mercado Libre |
+| 2026-09-25 | **No autodetectar la paquetería**; se indica en el comando | DHL y Estafeta usan ambos 10 dígitos: es imposible distinguirlas |
+| 2026-09-25 | **`better-sqlite3`** en vez de `node:sqlite` | `node:sqlite` es experimental y avisa en cada arranque; `better-sqlite3` es estable y usa binarios precompilados (sin compilar en Windows) |
+| 2026-09-25 | **SQLite** como base de datos | Un solo archivo, cero infraestructura. Le sobra capacidad para este proyecto |
+| 2026-09-25 | **Despliegue en VPS propio** | Disco persistente: SQLite funciona sin problema. Los free tiers (Render/Railway) borran el disco en cada despliegue y obligarían a migrar a PostgreSQL |
+| 2026-09-25 | **Los estados viven como texto** en la base de datos | SQLite no tiene tipos enumerados; la conversión se hace en un único punto (`aShipment` en el repositorio) |
+
+> **Nota sobre la base de datos:** si algún día se migra a PostgreSQL, el trabajo está acotado a
+> `db.ts` y `shipment.repository.ts` (métodos `async` y marcadores `$1, $2` en vez de `?`). El bot,
+> el servicio y los adaptadores no se tocan.

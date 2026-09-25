@@ -8,18 +8,23 @@
 // Es una regla de Node cuando se trabaja con modulos modernos.
 import { env } from './config/env.js';
 import { crearBot } from './bot/bot.js';
+import { ShipmentRepository } from './repositories/shipment.repository.js';
 import { TrackingService } from './services/tracking.service.js';
 
 console.log('Configuracion cargada correctamente:');
 console.log(`  Region: ${env.COUNTRY} / ${env.DEFAULT_STATE}`);
-console.log(`  Base de datos: ${env.DATABASE_PATH}`);
 console.log(`  Revisar paquetes cada: ${env.POLL_INTERVAL_MINUTES} minutos`);
 console.log(`  Proveedor de rastreo: ${env.TRACKING_PROVIDER}`);
-console.log('');
 
-// Aqui se montan las piezas, de dentro hacia fuera.
-const tracking = new TrackingService();
+// Aqui se montan las piezas, de dentro hacia fuera:
+//   repositorio (datos)  ->  servicio (logica)  ->  bot (Telegram)
+const repositorio = new ShipmentRepository(env.DATABASE_PATH);
+const tracking = new TrackingService(repositorio);
 const bot = crearBot(tracking);
+
+console.log(`Base de datos lista: ${env.DATABASE_PATH}`);
+console.log(`  Paquetes guardados: ${repositorio.contar()}`);
+console.log('');
 
 // bot.start() abre una conexion permanente con Telegram y NO termina nunca:
 // se queda escuchando mensajes hasta que lo detengas con Ctrl + C.

@@ -12,7 +12,7 @@ import type { TrackingService } from '../services/tracking.service.js';
 // Como se le muestra cada estado al usuario. Esto es presentacion, por eso vive
 // aqui y no en el servicio: el servicio no deberia saber de palabras en espanol.
 const ETIQUETAS: Record<NormalizedStatus, string> = {
-  unknown: 'Sin informacion',
+  unknown: 'Sin informacion todavia',
   created: 'Guia creada, todavia sin salir',
   in_transit: 'En transito',
   customs: 'Retenido en revision aduanal',
@@ -22,6 +22,18 @@ const ETIQUETAS: Record<NormalizedStatus, string> = {
   exception: 'Incidencia en la entrega',
   returned: 'Devuelto al remitente',
 };
+
+const AYUDA =
+  'Comandos disponibles:\n\n' +
+  '/add <paqueteria> <guia> [alias]  -  Guardar un paquete\n' +
+  '/list  -  Ver tus paquetes guardados\n' +
+  '/estado <paqueteria> <guia>  -  Consultar un paquete ahora mismo\n' +
+  '/help  -  Ver esta ayuda\n\n' +
+  'Ejemplos:\n' +
+  '/add fake FAKE000123 Tenis\n' +
+  '/estado demo DEMO000999';
+
+const USO_ADD = 'Uso: /add <paqueteria> <guia> [alias]\n\nEjemplo: /add fake FAKE000123 Tenis';
 
 // El bot se construye RECIBIENDO sus dependencias, no creandolas el mismo.
 // Asi queda claro que necesita un TrackingService para funcionar.
@@ -43,15 +55,91 @@ export function crearBot(tracking: TrackingService): Bot {
 
   // /help: la lista de comandos disponibles.
   bot.command('help', async (ctx) => {
-    await ctx.reply(
-      'Comandos disponibles:\n\n' +
-        '/estado <paqueteria> <guia>  -  Consultar un paquete ahora mismo\n' +
-        '/help  -  Ver esta ayuda\n\n' +
-        'Ejemplo: /estado fake FAKE000123',
-    );
+    await ctx.reply(AYUDA);
   });
 
-  // /estado <paqueteria> <guia>
+  // /add <paqueteria> <guia> [alias]
+  bot.command('add', async (ctx) => {
+    const partes = ctx.match.trim().split(/\s+/).filter(Boolean);
+    const paqueteria = partes[0];
+    const guia = partes[1];
+    const alias = partes.slice(2).join(' ');
+
+    if (!paqueteria || !guia) {
+      await ctx.reply(USO_ADD);
+      return;
+    }
+
+    // ctx.from es quien escribe; ctx.chat es la conversacion. Los necesitamos
+    // para saber a quien pertenece el paquete y a donde mandar los avisos.
+    const telegramId = ctx.from?.id;
+    const chatId = ctx.chat?.id;
+
+    if (!telegramId || !chatId) {
+      await ctx.reply('No pude identificar tu usuario de Telegram.');
+      return;
+    }
+
+    try {
+      const guardado = await tracking.agregar(
+        telegramId,
+        chatId,
+        paqueteria,
+        guia,
+        alias || undefined,
+      );
+
+      const lineas = [
+        'Paquete guardado.',
+        '',
+        `Alias: ${guardado.alias ?? '(sin alias)'}`,
+        `Paqueteria: ${guardado.carrier}`,
+        `Guia: ${guardado.trackingNumber}`,
+      ];
+
+      if (guardado.status === 'unknown') {
+        lineas.push('', 'Todavia no pude consultar su estado. Prueba /estado mas tarde.');
+      } else {
+        lineas.push(`Estado: ${ETIQUETAS[guardado.status]}`);
+      }
+
+      lineas.push('', 'Escribe /list para ver todos tus paquetes.');
+
+      await ctx.reply(lineas.join('\n'));
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : 'Error desconocido';
+      await ctx.reply(`No pude guardar el paquete.\n\n${mensaje}`);
+    }
+  });
+
+  // /list: los paquetes guardados de quien escribe.
+  bot.command('list', async (ctx) => {
+    const telegramId = ctx.from?.id;
+
+    if (!telegramId) {
+      await ctx.reply('No pude identificar tu usuario de Telegram.');
+      return;
+    }
+
+    const paquetes = tracking.listar(telegramId);
+
+    if (paquetes.length === 0) {
+      await ctx.reply('No tienes paquetes guardados todavia.\n\nUsa /add para registrar uno.');
+      return;
+    }
+
+    const bloques = paquetes.map((paquete, indice) => {
+      const titulo = paquete.alias
+        ? `${paquete.alias} (${paquete.trackingNumber})`
+        : paquete.trackingNumber;
+
+      return `${indice + 1}. ${titulo}\n   ${paquete.carrier} · ${ETIQUETAS[paquete.status]}`;
+    });
+
+    await ctx.reply(`Tus paquetes (${paquetes.length}):\n\n${bloques.join('\n\n')}`);
+  });
+
+  // /estado <paqueteria> <guia>: consulta puntual, sin guardar nada.
   bot.command('estado', async (ctx) => {
     // ctx.match es el texto que va despues del comando.
     const partes = ctx.match.trim().split(/\s+/).filter(Boolean);
