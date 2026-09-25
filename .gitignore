@@ -1,1 +1,10 @@
 node_modules/
+dist/
+.env
+data/
+*.sqlite
+*.sqlite-journal
+.DS_Store
+
+# Notas locales del asistente (no se comparten con el equipo)
+.workbuddy-ai/
