@@ -19,6 +19,9 @@ const schema = z.object({
   TZ: z.string().default('America/Mexico_City'),
   TRACKING_PROVIDER: z.string().default('aftership'),
   TRACKING_API_KEY: z.string().optional(),
+  // Opcional a proposito: sin esta clave el bot arranca igual, solo que sin las
+  // paqueterias reales de Trace. Asi nadie se queda bloqueado por no tenerla.
+  TRACE_API_KEY: z.string().optional(),
   MERCADOLIBRE_ACCESS_TOKEN: z.string().optional(),
   POLL_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
