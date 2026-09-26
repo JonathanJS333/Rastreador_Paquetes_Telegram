@@ -188,7 +188,15 @@ export class TraceApiAdapter implements CarrierAdapter {
 // (Shein, Temu, AliExpress).
 //
 // Anadir otra es anadir una linea aqui. Nada mas cambia.
-const PAQUETERIAS_DE_TRACE = [
+//
+// Se exporta para que scripts/verificar-paquetes.ts pueda compararla con el
+// catalogo real de Trace. Es a proposito una sola lista: si estuviera copiada
+// en dos sitios, una se quedaria vieja sin que nadie se diera cuenta.
+//
+// CUIDADO: un codigo mal escrito NO da error. Trace responde 400
+// "invalid_carrier", el adaptador lo convierte en "unknown" y el bot diria
+// "no lo se" para siempre sin explicar por que. Por eso existe el script.
+export const PAQUETERIAS_DE_TRACE = [
   'estafeta',
   'redpack',
   'dhl',

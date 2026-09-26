@@ -27,6 +27,9 @@
 // El 2o es la paqueteria (opcional).
 // El 3o es el NOMBRE DEL CAMPO a probar (opcional). Por defecto "carrier", que
 //   es el nombre confirmado en la especificacion de Trace.
+//
+// Para comprobar la LISTA de paqueterias (no una guia concreta) hay otro script:
+//   npx tsx scripts/verificar-paquetes.ts
 
 import { env } from '../src/config/env.js';
 
@@ -89,9 +92,14 @@ if (respuesta.status === 401) {
 } else if (respuesta.status === 400) {
   // Buena senal, aunque lo parezca: significa que Trace SI leyo el campo y lo
   // rechazo. Un nombre de campo desconocido no da 400, da 503 (lo ignora).
-  console.error('La peticion esta mal formada. Si has pasado una paqueteria,');
-  console.error(`puede que "${nombreDelCampo}" no sea el nombre correcto del campo,`);
-  console.error('o que la paqueteria no este en el catalogo de Trace.');
+  //
+  // Desde el 2026-09-26 sabemos que el nombre del campo ("carrier") es
+  // correcto, asi que la causa casi seguro es la PAQUETERIA.
+  console.error('Trace leyo el campo de paqueteria y lo rechazo.');
+  console.error(`La paqueteria "${paqueteria ?? '(ninguna)'}" no esta en su catalogo.`);
+  console.error('');
+  console.error('Comprueba TODAS las nuestras de una vez:');
+  console.error('  npx tsx scripts/verificar-paquetes.ts');
   console.error('Catalogo:  https://traceapi.dev/docs  (seccion "Carrier codes")');
 } else if (respuesta.status === 402) {
   console.error('Se agoto la cuota mensual gratuita (1.000 consultas).');
