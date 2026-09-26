@@ -8,3 +8,9 @@ data/
 
 # Notas locales del asistente (no se comparten con el equipo)
 .workbuddy-ai/
+
+# Skills del asistente. Son herramientas suyas, NO forman parte del bot:
+# sin ellas el proyecto sigue compilando y las pruebas siguen pasando.
+# Cada quien las instala en su propia maquina si las quiere.
+.agents/
+skills-lock.json
