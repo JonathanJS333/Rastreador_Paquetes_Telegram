@@ -17,8 +17,15 @@ const schema = z.object({
   COUNTRY: z.string().default('MX'),
   DEFAULT_STATE: z.string().default('Oaxaca'),
   TZ: z.string().default('America/Mexico_City'),
-  TRACKING_PROVIDER: z.string().default('aftership'),
+  // Solo informativo: se imprime al arrancar. Quien decide de verdad que
+  // paqueterias existen es el catalogo de carrier.factory.ts.
+  TRACKING_PROVIDER: z.string().default('trace'),
+  // Sin uso todavia: sobraba del plan inicial con AfterShip. Se deja para no
+  // romper el .env de nadie, pero se puede borrar cuando el equipo quiera.
   TRACKING_API_KEY: z.string().optional(),
+  // Opcional a proposito: sin esta clave el bot arranca igual, solo que sin las
+  // paqueterias reales de Trace. Asi nadie se queda bloqueado por no tenerla.
+  TRACE_API_KEY: z.string().optional(),
   MERCADOLIBRE_ACCESS_TOKEN: z.string().optional(),
   POLL_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),

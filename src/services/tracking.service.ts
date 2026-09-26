@@ -3,8 +3,8 @@
 // Aqui vive la logica de negocio. Esta capa NO sabe de Telegram: solo orquesta.
 // Tampoco escribe SQL: para eso le pide las cosas al repositorio.
 
-import { getAdapter } from '../carriers/carrier.factory.js';
-import type { TrackingResult } from '../carriers/carrier.interface.js';
+import { buscarAdaptador } from '../carriers/carrier.factory.js';
+import type { CarrierAdapter, TrackingResult } from '../carriers/carrier.interface.js';
 import type { Shipment, ShipmentRepository } from '../repositories/shipment.repository.js';
 
 // La base de datos rechaza los paquetes repetidos gracias a la restriccion UNIQUE
@@ -15,15 +15,25 @@ function esDuplicado(error: unknown): boolean {
 
 export class TrackingService {
   // El repositorio llega desde fuera (se lo da index.ts). El servicio no lo crea.
-  constructor(private readonly repo: ShipmentRepository) {}
+  //
+  // El catalogo de paqueterias tambien es OBLIGATORIO, y a proposito no tiene
+  // valor por defecto: si lo tuviera, alguien podria montar el servicio sin
+  // querer y el bot rastrearia con paqueterias de mentira sin avisar. Es mejor
+  // que no compile a que falle en silencio.
+  //
+  // Quien decide que paqueterias hay es index.ts (ver carrier.factory.ts).
+  constructor(
+    private readonly repo: ShipmentRepository,
+    private readonly catalogo: CarrierAdapter[],
+  ) {}
 
   // Consulta el estado actual de un paquete, sin guardar nada.
   //
-  // Si la paqueteria no esta soportada, getAdapter lanza un error con un mensaje
-  // claro. Aqui NO lo capturamos a proposito: quien llama (el bot) es quien debe
-  // decidir como contarselo al usuario.
+  // Si la paqueteria no esta soportada, buscarAdaptador lanza un error con un
+  // mensaje claro. Aqui NO lo capturamos a proposito: quien llama (el bot) es
+  // quien debe decidir como contarselo al usuario.
   async consultar(paqueteria: string, numeroGuia: string): Promise<TrackingResult> {
-    const adapter = getAdapter(paqueteria);
+    const adapter = buscarAdaptador(this.catalogo, paqueteria);
     return adapter.track(numeroGuia);
   }
 
@@ -37,7 +47,7 @@ export class TrackingService {
   ): Promise<Shipment> {
     // Comprobamos que la paqueteria existe ANTES de guardar nada. Si no,
     // tendriamos paquetes guardados que nunca se podrian consultar.
-    const adapter = getAdapter(paqueteria);
+    const adapter = buscarAdaptador(this.catalogo, paqueteria);
 
     // El usuario tiene que existir antes que el paquete, porque la tabla
     // "shipments" apunta a la tabla "users".
