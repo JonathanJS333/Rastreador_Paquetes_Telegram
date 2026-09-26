@@ -39,7 +39,7 @@ const URL_DE_TRACE = 'https://api.traceapi.dev/v1/track';
 
 // Trace usa 6 estados; nosotros tenemos 9. Esta es la traduccion.
 // Ojo: no hay traduccion para "at_branch" ni para "returned" porque Trace no
-// los distingue. Ver "detectarEnTexto" mas abajo.
+// los distingue (ver PLAN.md 1.4). Hoy esos dos casos se quedan en "unknown".
 const ESTADOS_DE_TRACE: Record<string, NormalizedStatus> = {
   pending: 'created',
   in_transit: 'in_transit',
@@ -129,8 +129,10 @@ export class TraceApiAdapter implements CarrierAdapter {
     return {
       trackingNumber,
       carrier: this.name,
-      // Si el estado oficial no lo conocemos, miramos el texto del ultimo
-      // evento antes de rendirnos. (El "ocurre" entra por aqui.)
+      // PENDIENTE (ver PLAN.md 1.4): Trace no distingue "en sucursal" (el
+      // ocurre) ni "devuelto al remitente". Hoy, si su estado no esta en la
+      // tabla, se queda en "unknown" y no pasa nada mas. El dia que haga falta,
+      // aqui es donde se miraria el texto del ultimo evento.
       status: estado ?? 'unknown',
       events: eventos,
     };
