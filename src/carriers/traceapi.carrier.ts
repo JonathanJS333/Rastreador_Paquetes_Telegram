@@ -156,7 +156,13 @@ export class TraceApiAdapter implements CarrierAdapter {
         body: JSON.stringify({
           tracking_number: trackingNumber,
           // Se le dice la paqueteria para que no tenga que adivinarla.
-          carrier_code: this.name,
+          //
+          // El campo se llama "carrier" y NO "carrier_code". Se comprobo en la
+          // especificacion tecnica (https://traceapi.dev/openapi.json): la
+          // documentacion normal solo decia "acepta un override", sin dar el
+          // nombre. Con el nombre equivocado Trace NO protesta: ignora el campo
+          // en silencio y devuelve 503 como si la guia no existiera.
+          carrier: this.name,
         }),
       });
 

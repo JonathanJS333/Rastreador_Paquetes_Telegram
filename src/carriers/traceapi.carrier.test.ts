@@ -224,7 +224,14 @@ test('manda la guia, la paqueteria y la clave en la peticion', async () => {
   assert.equal(cuerpo.tracking_number, '1234567890');
   // Hay que indicar la paqueteria: las guias de Estafeta son numericas y Trace
   // no puede adivinar de quien son (DHL tambien usa 10 digitos).
-  assert.equal(cuerpo.carrier_code, 'estafeta');
+  //
+  // El campo se llama "carrier", NO "carrier_code". Se comprobo en la
+  // especificacion tecnica de Trace (https://traceapi.dev/openapi.json,
+  // consultada el 2026-09-26): "Optional carrier override". La documentacion
+  // normal no lo publicaba; adivinarlo habria dejado el override sin efecto
+  // y Trace habria respondido 503 sin explicar por que.
+  assert.equal(cuerpo.carrier, 'estafeta');
+  assert.equal(cuerpo.carrier_code, undefined, 'no debe mandarse el nombre viejo');
 });
 
 test('no intenta adivinar la paqueteria por el numero', () => {

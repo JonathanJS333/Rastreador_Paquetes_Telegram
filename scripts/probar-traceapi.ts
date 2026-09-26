@@ -1,16 +1,22 @@
 // PRUEBA A MANO CONTRA LA API DE TRACE
 //
-// Sirve para tres cosas:
+// Sirve para dos cosas:
 //   1. Comprobar que la clave del archivo .env funciona de verdad.
-//   2. Ver la RESPUESTA REAL de la API, en crudo, antes de escribir el adaptador.
-//      Programar contra una API sin haberla llamado nunca es pedir problemas:
-//      la documentacion se equivoca, sobre todo en los nombres de los campos.
-//   3. Averiguar como se le dice a Trace QUE paqueteria es la guia.
+//   2. Ver la RESPUESTA REAL de la API, en crudo. Programar contra una API sin
+//      haberla llamado nunca es pedir problemas: la documentacion se equivoca,
+//      sobre todo en los nombres de los campos.
 //
-// Ese ultimo dato es el motivo principal de este archivo. La documentacion de
-// Trace dice que "acepta un override de paqueteria", pero NO dice como se llama
-// ese campo. Y para Estafeta hace falta: sus guias son numericas y no se
-// autodetectan. En vez de adivinarlo, se lo preguntamos a la API.
+// HISTORIA (2026-09-26): este archivo nacio para averiguar como se le dice a
+// Trace QUE paqueteria es la guia. La documentacion normal solo decia "acepta
+// un override de paqueteria", sin dar el nombre del campo. La respuesta se
+// encontro en su especificacion tecnica (https://traceapi.dev/openapi.json):
+// el campo se llama "carrier". Se deja la herramienta porque seguira haciendo
+// falta para probar guias reales.
+//
+// OJO: si el nombre del campo esta mal, Trace NO da error: lo ignora en
+// silencio y contesta 503, como si la guia no existiera. Por eso conviene
+// probar tambien con una paqueteria inventada: si contesta 400, es que SI esta
+// leyendo el campo.
 //
 // Uso:
 //   npx tsx scripts/probar-traceapi.ts 1234567890
@@ -19,15 +25,15 @@
 //
 // El 1er argumento es la guia (obligatorio).
 // El 2o es la paqueteria (opcional).
-// El 3o es el NOMBRE DEL CAMPO a probar (opcional). Por defecto "carrier_code",
-//   que es el nombre mas habitual. Si sale error, prueba otro nombre.
+// El 3o es el NOMBRE DEL CAMPO a probar (opcional). Por defecto "carrier", que
+//   es el nombre confirmado en la especificacion de Trace.
 
 import { env } from '../src/config/env.js';
 
 const argumentos = process.argv.slice(2);
 const guia = argumentos[0];
 const paqueteria = argumentos[1];
-const nombreDelCampo = argumentos[2] ?? 'carrier_code';
+const nombreDelCampo = argumentos[2] ?? 'carrier';
 
 if (!guia) {
   console.error('Falta la guia.');
@@ -81,14 +87,25 @@ console.log('');
 if (respuesta.status === 401) {
   console.error('La clave no es valida. Revisa TRACE_API_KEY en el .env.');
 } else if (respuesta.status === 400) {
+  // Buena senal, aunque lo parezca: significa que Trace SI leyo el campo y lo
+  // rechazo. Un nombre de campo desconocido no da 400, da 503 (lo ignora).
   console.error('La peticion esta mal formada. Si has pasado una paqueteria,');
-  console.error(`puede que "${nombreDelCampo}" no sea el nombre correcto del campo.`);
-  console.error('Prueba otro:  npx tsx scripts/probar-traceapi.ts ' + guia + ' ' + (paqueteria ?? 'estafeta') + ' carrier');
+  console.error(`puede que "${nombreDelCampo}" no sea el nombre correcto del campo,`);
+  console.error('o que la paqueteria no este en el catalogo de Trace.');
+  console.error('Catalogo:  https://traceapi.dev/docs  (seccion "Carrier codes")');
 } else if (respuesta.status === 402) {
   console.error('Se agoto la cuota mensual gratuita (1.000 consultas).');
 } else if (respuesta.status === 429) {
   console.error('Demasiadas peticiones seguidas. El plan gratuito permite 10 por minuto.');
 } else if (respuesta.status === 503) {
   console.error('Trace no encontro datos utilizables para esa guia.');
-  console.error('No significa que la guia este mal: puede que la fuente no responda.');
+  console.error('');
+  console.error('Cuidado: este error tiene DOS causas y se ven igual.');
+  console.error('  a) La guia no existe o su fuente no responde (lo normal).');
+  console.error('  b) El nombre del campo de paqueteria esta mal: Trace lo ignora');
+  console.error('     en silencio y contesta lo mismo.');
+  console.error('Para distinguirlas, manda una paqueteria INVENTADA:');
+  console.error(`  npx tsx scripts/probar-traceapi.ts ${guia} paqueteria_inventada`);
+  console.error('  - Si sale 400 -> el campo se lee bien; el 503 era por la guia.');
+  console.error('  - Si sale 503 -> el campo se esta ignorando.');
 }
