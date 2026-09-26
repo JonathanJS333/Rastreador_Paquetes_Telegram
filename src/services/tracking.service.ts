@@ -3,7 +3,7 @@
 // Aqui vive la logica de negocio. Esta capa NO sabe de Telegram: solo orquesta.
 // Tampoco escribe SQL: para eso le pide las cosas al repositorio.
 
-import { buscarAdaptador, paqueteriasDeDesarrollo } from '../carriers/carrier.factory.js';
+import { buscarAdaptador } from '../carriers/carrier.factory.js';
 import type { CarrierAdapter, TrackingResult } from '../carriers/carrier.interface.js';
 import type { Shipment, ShipmentRepository } from '../repositories/shipment.repository.js';
 
@@ -16,13 +16,15 @@ function esDuplicado(error: unknown): boolean {
 export class TrackingService {
   // El repositorio llega desde fuera (se lo da index.ts). El servicio no lo crea.
   //
-  // El catalogo de paqueterias tambien llega desde fuera, por el mismo motivo:
-  // asi index.ts decide si el bot habla con paqueterias reales (Trace) o solo
-  // con las de desarrollo. Si no le pasan ninguno, usa las de desarrollo, que
-  // es lo que necesitan las pruebas.
+  // El catalogo de paqueterias tambien es OBLIGATORIO, y a proposito no tiene
+  // valor por defecto: si lo tuviera, alguien podria montar el servicio sin
+  // querer y el bot rastrearia con paqueterias de mentira sin avisar. Es mejor
+  // que no compile a que falle en silencio.
+  //
+  // Quien decide que paqueterias hay es index.ts (ver carrier.factory.ts).
   constructor(
     private readonly repo: ShipmentRepository,
-    private readonly catalogo: CarrierAdapter[] = paqueteriasDeDesarrollo(),
+    private readonly catalogo: CarrierAdapter[],
   ) {}
 
   // Consulta el estado actual de un paquete, sin guardar nada.

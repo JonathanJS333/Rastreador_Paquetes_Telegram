@@ -11,12 +11,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ShipmentRepository } from '../repositories/shipment.repository.js';
+import { paqueteriasDeDesarrollo } from '../carriers/carrier.factory.js';
 import { SyncService, type CambioDeEstado } from './sync.service.js';
 import { TrackingService } from './tracking.service.js';
 
 test('syncAll avisa cuando el estado del paquete cambio', async () => {
   const repo = new ShipmentRepository(':memory:');
-  const tracking = new TrackingService(repo);
+  const tracking = new TrackingService(repo, paqueteriasDeDesarrollo());
 
   // El adaptador "fake" SIEMPRE responde "in_transit", asi que al guardar el
   // paquete queda ya en ese estado.
@@ -48,7 +49,7 @@ test('syncAll avisa cuando el estado del paquete cambio', async () => {
 
 test('syncAll no avisa cuando el estado sigue igual', async () => {
   const repo = new ShipmentRepository(':memory:');
-  const tracking = new TrackingService(repo);
+  const tracking = new TrackingService(repo, paqueteriasDeDesarrollo());
 
   // El paquete queda guardado YA con el estado "in_transit" que devuelve "fake".
   await tracking.agregar(222, 222, 'fake', 'FAKE000999');
@@ -66,7 +67,7 @@ test('syncAll no avisa cuando el estado sigue igual', async () => {
 
 test('un paquete que falla no impide revisar los demas', async () => {
   const repo = new ShipmentRepository(':memory:');
-  const tracking = new TrackingService(repo);
+  const tracking = new TrackingService(repo, paqueteriasDeDesarrollo());
 
   // Paquete 1: de una paqueteria que NO existe. Consultarlo va a lanzar error.
   // Se guarda directo con el repositorio porque el servicio lo rechazaria.
@@ -95,7 +96,7 @@ test('un paquete que falla no impide revisar los demas', async () => {
 
 test('un aviso que falla no impide avisar a los demas', async () => {
   const repo = new ShipmentRepository(':memory:');
-  const tracking = new TrackingService(repo);
+  const tracking = new TrackingService(repo, paqueteriasDeDesarrollo());
 
   // Dos usuarios, cada uno con un paquete pendiente de aviso.
   const primero = await tracking.agregar(444, 444, 'fake', 'FAKE000444');
