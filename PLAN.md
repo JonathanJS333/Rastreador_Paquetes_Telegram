@@ -71,11 +71,26 @@
 
 Ninguna de las paqueterías mexicanas ofrece una API de rastreo **abierta y gratuita**, salvo Mercado Libre. Las opciones:
 
-1. **Agregador (recomendado para el MVP)** — AfterShip, TrackingMore o 17TRACK ya soportan Estafeta, DHL, FedEx, UPS, Correos de México, J&T, Paquetexpress y Redpack con **una sola API**. Plan gratuito limitado. Es la vía con menos trabajo y más cobertura.
+1. **Agregador (la vía elegida)** — una sola API cubre muchas paqueterías a la vez. Es la vía con menos trabajo y más cobertura.
 2. **API oficial** — solo cuando el agregador falle o necesitéis datos exactos. Requiere registro y a veces contrato comercial.
 3. **Scraping de la web** — frágil y con dudas de ToS. Último recurso, aislado en su adaptador.
 
-**Propuesta:** agregador para todo + **API pública de Mercado Libre** para envíos de Mercado Envíos. Las APIs oficiales se añaden después, sin tocar el resto del código.
+#### Agregador elegido: Trace API (`traceapi.dev`)
+
+Comprobado el 2026-09-26 en su documentación y su página de precios:
+
+- **Plan gratuito: 1.000 consultas al mes**, sin tarjeta. Límite de 10 peticiones por minuto.
+- Cubre **Estafeta** y **Redpack**, y además DHL, FedEx, UPS, J&T Express, YunExpress, 4PX, Cainiao y Yanwen.
+- La clave viaja en la cabecera `Authorization: Bearer ...`, **nunca** en la URL (las URLs quedan en los registros de los servidores).
+- Un solo punto final: `POST https://api.traceapi.dev/v1/track`.
+
+> ⚠️ **Corrección (2026-09-26).** Este apartado recomendaba antes AfterShip, TrackingMore o 17TRACK como si tuvieran plan gratuito aprovechable. **No lo tienen**: sus APIs exigen plan de pago (AfterShip Premium, TrackingMore Basic, 17TRACK por prepago). Solo el *panel web* para mirar a mano es gratis, y eso no sirve para un bot. Se verificó en sus páginas de precios.
+>
+> ⚠️ **Aviso sobre Ship24:** su blog afirma que su API entra en el plan gratuito, pero su página de precios dice lo contrario (la API exige Pro). **Cuando la documentación se contradice, manda la página de precios.**
+
+**Propuesta:** Trace API para todo + **API pública de Mercado Libre** para envíos de Mercado Envíos. Las APIs oficiales se añaden después, sin tocar el resto del código.
+
+> 🔎 **Lo que Trace NO distingue (pendiente).** Trace usa solo 6 estados y **no separa** "en sucursal, listo para recoger" (**`at_branch`**, el famoso *ocurre*, crítico en Oaxaca) ni "devuelto al remitente" (`returned`). Su estado `exception` mezcla intento fallido, retenido, devuelto y demora en aduana. **Decisión pendiente:** detectar esos casos leyendo el texto del evento (`description`), no solo el estado.
 
 ### 1.5 ⚠️ La detección automática de paquetería NO es fiable
 
@@ -894,6 +909,7 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 |---|---|---|
 | 2026-09-25 | Fase 6 (comandos): `/add` (guarda y consulta el estado por primera vez) y `/list` (con estado real). El repositorio tipa `status` como `NormalizedStatus` y añade `actualizarEstado()`. **Verificado:** guardado con estado real, duplicado con mensaje legible, paquetería inválida rechazada, aislamiento entre usuarios. | Probar `/add` y `/list` en Telegram y hacer commit |
 | 2026-09-25 | **Paso 10 / Fase 7 — sincronizador automático.** `SyncService.syncAll()` recorre todos los paquetes y avisa **solo cuando el estado cambió**. La capa de aplicación emite datos (`CambioDeEstado`), no frases: el bot las convierte en mensaje. El reloj es un `setTimeout` autorreagendado. Adaptador de desarrollo `secuencia` para poder verlo funcionar. **Verificado con 4 pruebas** (`npm test`) y con el flujo completo de punta a punta. | Probar en Telegram (`/add secuencia SECU000123` con `POLL_INTERVAL_MINUTES=1`) y hacer commit |
+| 2026-09-26 | **Paso 12 — adaptador real de Trace API.** `TraceApiAdapter` envuelve `traceapi.dev`: una sola clave sirve para 10 paqueterías (Estafeta, Redpack, DHL, FedEx, UPS, J&T, YunExpress, 4PX, Cainiao, Yanwen). Traduce sus 6 estados a los nuestros, convierte los eventos (`timestamp` → `occurredAt`) y, ante cualquier fallo (error HTTP, red caída, JSON ilegible), devuelve `unknown` en vez de lanzar. El catálogo de paqueterías dejó de ser fijo: `crearCatalogo()` suma las reales **solo si hay `TRACE_API_KEY`**, y `index.ts` se lo entrega al servicio. **Verificado con 18 pruebas** (`npm test`) y con dos pruebas de mutación (una de ellas descubrió un fallo real: un error 500 con cuerpo válido se daba por bueno). | Verificar el nombre real del campo de paquetería con `scripts/probar-traceapi.ts`, y probar en Telegram con una guía real |
 
 **Método de trabajo adoptado** (ver §11): TDD (prueba que falla primero), revisión de 5 ejes y criterio "Ponytail" (la solución más simple que funcione).
 
@@ -905,7 +921,10 @@ Preguntad **"¿en qué vamos?"**. La respuesta será siempre:
 - `syncAll()` consulta los paquetes **de uno en uno**. Con pocos paquetes sobra; si algún día son cientos, toca paralelizar con un límite.
 - Sigue sin existir `scripts/check-architecture.mjs` (sección 2.8): las reglas de dependencia están escritas pero no se comprueban solas.
 - Falta `src/config/oaxaca.ts` (validación de CP 68000–71999) y los comandos `/remove`, `/cp`, `/notify on|off`.
-- Los adaptadores reales (Estafeta, MercadoLibre, DHL, agregador) siguen pendientes.
+- **Paso 12:** el nombre del campo con el que se le indica la paquetería a Trace (`carrier_code`) **no está verificado** contra la API real. Su documentación menciona un "carrier override" pero no publica el nombre. Hay una herramienta (`scripts/probar-traceapi.ts`) para comprobarlo con una guía real: si el campo es correcto, Trace responde que no encuentra el paquete; si es incorrecto, responde error de petición.
+- **Paso 12:** Trace no distingue `at_branch` (el *ocurre*) ni `returned` (ver §1.4). Decidir si se detectan leyendo el texto del evento.
+- **Paso 12:** `TRACKING_PROVIDER` y `TRACKING_API_KEY` son restos del plan inicial con AfterShip. Solo se usan para imprimir en el arranque; se pueden borrar.
+- Los adaptadores oficiales (Estafeta directo, MercadoLibre, DHL) siguen pendientes. El agregador (Trace) ya está.
 
 ---
 
@@ -931,6 +950,13 @@ Cada decisión importante, con su motivo. Así, dentro de dos meses nadie tiene 
 | 2026-09-25 | **`chat_id` se lee de la tabla `users`, no se asume igual a `telegram_id`** | En un chat privado coinciden, en un grupo no. El dato ya estaba guardado: usarlo es más correcto que suponer |
 | 2026-09-25 | **Adaptador `secuencia`** (avanza un estado por consulta) | Sin él no había forma de *ver* el sincronizador funcionando: los adaptadores existentes devuelven siempre el mismo estado |
 | 2026-09-25 | **Método de trabajo: TDD + revisión de 5 ejes + Ponytail** | Prueba que falla primero; revisión con severidades; la solución más simple que funcione. Reduce bugs silenciosos, que es justo el riesgo de un bot que corre solo |
+| 2026-09-26 | **Trace API (`traceapi.dev`) como agregador**, en vez de AfterShip / TrackingMore / 17TRACK | Es el único agregador con plan gratuito aprovechable para un bot (1.000 consultas al mes, sin tarjeta) y cubre Estafeta y Redpack. Los otros exigen plan de pago. Ver §1.4 |
+| 2026-09-26 | **El adaptador usa el `fetch` que ya trae Node**, no `axios` | `fetch` viene incluido desde Node 18. Añadir `axios` sería una dependencia más para una sola llamada HTTP |
+| 2026-09-26 | **El transporte HTTP se inyecta en el adaptador** (por defecto `fetch`) | Permite probar el adaptador **sin internet**: se le pasa una respuesta inventada. Una prueba que depende de la red deja de servir el día que la red va mal |
+| 2026-09-26 | **El catálogo de paqueterías se construye en `index.ts` y se le pasa al servicio**, en vez de ser una lista fija dentro de la fábrica | Los adaptadores reales necesitan una clave que solo se conoce al arrancar, y una lista escrita en el archivo no puede saberla. Además respeta la regla de §2: `index.ts` es el único sitio donde se elige qué implementación concreta se usa |
+| 2026-09-26 | **Si falta `TRACE_API_KEY`, el bot arranca igual**, solo con las paqueterías de desarrollo | Nadie debe quedarse bloqueado por no tener una clave. El catálogo que se imprime al arrancar deja claro qué hay disponible |
+| 2026-09-26 | **Un fallo de la API se convierte en `unknown`, nunca en excepción** | Que Trace esté caído un domingo no puede tumbar el bot ni impedir revisar los demás paquetes (§6.3) |
+| 2026-09-26 | **La prueba de mutación entra en el ciclo normal**, no es un extra | Al romper el código a propósito se descubrió que una prueba "en verde" no comprobaba nada (un error 500 con cuerpo válido se daba por bueno). Sin ese paso, el fallo llegaba a producción |
 
 > **Nota sobre la base de datos:** si algún día se migra a PostgreSQL, el trabajo está acotado a
 > `db.ts` y `shipment.repository.ts` (métodos `async` y marcadores `$1, $2` en vez de `?`). El bot,

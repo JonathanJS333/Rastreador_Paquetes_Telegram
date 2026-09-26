@@ -8,6 +8,7 @@
 // Es una regla de Node cuando se trabaja con modulos modernos.
 import { env } from './config/env.js';
 import { crearAvisador, crearBot } from './bot/bot.js';
+import { crearCatalogo, listarPaqueterias } from './carriers/carrier.factory.js';
 import { ShipmentRepository } from './repositories/shipment.repository.js';
 import { SyncService } from './services/sync.service.js';
 import { TrackingService } from './services/tracking.service.js';
@@ -19,8 +20,13 @@ console.log(`  Proveedor de rastreo: ${env.TRACKING_PROVIDER}`);
 
 // Aqui se montan las piezas, de dentro hacia fuera:
 //   repositorio (datos)  ->  servicio (logica)  ->  bot (Telegram)
+//
+// El catalogo de paqueterias se decide AQUI: las de desarrollo siempre, y las
+// reales de Trace solo si hay clave configurada. Si no la hay, el bot arranca
+// igual con las de mentira (fake, demo, secuencia).
+const catalogo = crearCatalogo(env.TRACE_API_KEY);
 const repositorio = new ShipmentRepository(env.DATABASE_PATH);
-const tracking = new TrackingService(repositorio);
+const tracking = new TrackingService(repositorio, catalogo);
 const bot = crearBot(tracking);
 
 // El sincronizador recibe una funcion para avisar. Esa funcion la fabrica el
@@ -29,6 +35,7 @@ const sincronizador = new SyncService(repositorio, tracking, crearAvisador(bot))
 
 console.log(`Base de datos lista: ${env.DATABASE_PATH}`);
 console.log(`  Paquetes guardados: ${repositorio.contar()}`);
+console.log(`  Paqueterias disponibles: ${listarPaqueterias(catalogo).join(', ')}`);
 console.log('');
 
 // EL SINCRONIZADOR AUTOMATICO
